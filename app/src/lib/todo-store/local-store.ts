@@ -1,6 +1,8 @@
 import { DBSchema, IDBPDatabase, openDB } from 'idb';
+import { ulid } from 'ulidx';
 import {
-  Todo, TodoStatus, TodoStore, ULID,
+  CreateTodoInput,
+  Todo, TodoStatus, TodoStore, ULID, UpdateTodoInputDetails,
 } from './types';
 
 const LOCAL_DB_NAME = 'todos';
@@ -40,6 +42,8 @@ interface TodoStoreDBV1Schema extends DBSchema {
     indexes: { idx_created_at: number; }
   }
 }
+
+type TodoDBRecord = TodoStoreDBV1Schema['todos']['value'];
 
 class LocalTodoStore implements TodoStore {
   constructor(private db: IDBPDatabase<TodoStoreDBV1Schema>) {}
@@ -90,28 +94,73 @@ class LocalTodoStore implements TodoStore {
     );
 
     const todos = todoQueryResults
-      .filter((todo): todo is TodoStoreDBV1Schema['todos']['value'] => {
+      .filter((todo): todo is TodoDBRecord => {
         if (todo === null || todo === undefined) {
           console.warn('Failed to locate some existing todos');
           return false;
         }
         return true;
       })
-      .map<Todo>((todo) => {
-      const createdAtDate = LocalTodoStore.convertUnixSecondsTimestampToDate(todo.createdAt);
-      let updatedAtDate: Todo['updatedAt'];
-      if (todo.updatedAt) {
-        updatedAtDate = LocalTodoStore.convertUnixSecondsTimestampToDate(todo.updatedAt);
-      }
-
-      return {
-        ...todo,
-        createdAt: createdAtDate,
-        updatedAt: updatedAtDate,
-      };
-    });
+      .map<Todo>(LocalTodoStore.mapTodoDBRecordToTodo);
 
     return { items: todos };
+  }
+
+  async createTodo(details: CreateTodoInput): Promise<Todo> {
+    const newTodo = {
+      id: ulid(),
+      createdAt: LocalTodoStore.convertDateToUnixSecondsTimestamp(new Date()),
+      status: TodoStatus.Incomplete,
+      ...details,
+    } satisfies TodoDBRecord;
+
+    await this.db.put('todos', newTodo, newTodo.id);
+    await this.db.put(
+      'todo_days',
+      {
+        id: ulid(),
+        todoId: newTodo.id,
+        createdAt: newTodo.createdAt,
+      },
+    );
+
+    return LocalTodoStore.mapTodoDBRecordToTodo(newTodo);
+  }
+
+  async updateTodo(id: string, details: UpdateTodoInputDetails): Promise<Todo> {
+    const trx = this.db.transaction('todos', 'readwrite');
+
+    const existingTodoRecord = await trx.store.get(id);
+    if (!existingTodoRecord) {
+      throw new Error('Todo does not exist');
+    }
+
+    const newTodoRecord = {
+      ...existingTodoRecord,
+      ...details,
+    } satisfies TodoDBRecord;
+
+    await trx.store.put(newTodoRecord, id);
+
+    return LocalTodoStore.mapTodoDBRecordToTodo(newTodoRecord);
+  }
+
+  /**
+    * The way we store todos in the IndexedDB is a bit different then the outward representation
+    * Mostly just returning actual date objects instead of unix timestamps
+    * */
+  private static mapTodoDBRecordToTodo(record: TodoDBRecord): Todo {
+    const createdAtDate = LocalTodoStore.convertUnixSecondsTimestampToDate(record.createdAt);
+    let updatedAtDate: Todo['updatedAt'];
+    if (record.updatedAt) {
+      updatedAtDate = LocalTodoStore.convertUnixSecondsTimestampToDate(record.updatedAt);
+    }
+
+    return {
+      ...record,
+      createdAt: createdAtDate,
+      updatedAt: updatedAtDate,
+    };
   }
 
   private static convertDateToUnixSecondsTimestamp(date: Date): UnixSeconds {

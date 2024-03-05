@@ -1,0 +1,30 @@
+{
+  "root": true,
+  "env": {
+    "browser": true,
+    "es2021": true
+  },
+  "ignorePatterns": ["dist", ".eslintrc.cjs", "vite.config.ts", "tailwind.config.js", "src/components/ui"],
+  "plugins": ["react-refresh"],
+  "extends": [
+    "airbnb",
+    "airbnb-typescript",
+    "plugin:@typescript-eslint/recommended",
+    "plugin:react-hooks/recommended"
+  ],
+  "parser": "@typescript-eslint/parser",
+  "parserOptions": {
+    "project": "./tsconfig.json"
+  },
+  "rules": {
+    "import/prefer-default-export": "off",
+    "react/react-in-jsx-scope": "off",
+    "@typescript-eslint/no-use-before-define": "off",
+    "import/extensions": "off",
+    "react/jsx-props-no-spreading": "off",
+    "no-console": [
+      "error",
+      { "allow": ["warn", "error"] }
+    ]
+  }
+}

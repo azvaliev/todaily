@@ -29,11 +29,11 @@ interface TodoStoreDBV1Schema extends DBSchema {
 
 type TodoDBRecord = TodoStoreDBV1Schema['todos']['value'];
 
-class LocalTodoStore implements TodoStore {
+export class LocalTodoStore implements TodoStore {
   constructor(private db: IDBPDatabase<TodoStoreDBV1Schema>) {}
 
-  static async create(): Promise<LocalTodoStore> {
-    const db = await openDB<TodoStoreDBV1Schema>(LOCAL_DB_NAME, 1, {
+  static async create(dbName = LOCAL_DB_NAME): Promise<LocalTodoStore> {
+    const db = await openDB<TodoStoreDBV1Schema>(dbName, 1, {
       upgrade(database) {
         const todoStore = database.createObjectStore('todos', {
           keyPath: 'id',
@@ -155,7 +155,7 @@ class LocalTodoStore implements TodoStore {
       ...details,
     } satisfies TodoDBRecord;
 
-    await this.db.put('todos', newTodo, newTodo.id);
+    await this.db.put('todos', newTodo);
 
     return LocalTodoStore.mapTodoDBRecordToTodo(newTodo);
   }

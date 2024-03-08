@@ -3,6 +3,8 @@ import { snakeToCamelCase } from 'cold-case';
 import { ulid } from 'ulidx';
 import {
   CreateTodoInput,
+  HandleStaleTodoInput,
+  StaleTodoAction,
   Todo, TodoStatus, TodoStore, ULID, UpdateTodoInputDetails,
 } from './types';
 
@@ -53,7 +55,6 @@ class LocalTodoStore implements TodoStore {
     endOfDay.setDate(endOfDay.getDate() + 1);
     endOfDay.setHours(0, 0, 0);
 
-    /** Join todos to todo id's */
     const todoQueryResults = await this.db.getAllFromIndex(
       'todos',
       'idx_created_at_status',
@@ -61,9 +62,89 @@ class LocalTodoStore implements TodoStore {
     );
 
     const todos = todoQueryResults
-      .map<Todo>((dbRec) => snakeToCamelCase(dbRec));
+      .map<Todo>(LocalTodoStore.mapTodoDBRecordToTodo);
 
     return { items: todos };
+  }
+
+  async getStaleTodos(): Promise<{ items: Todo[]; }> {
+    const yesterdaySameTimeUnix = new Date().getTime() - (24 * 60 * 60 * 1000);
+
+    const endOfDayYesterday = new Date(yesterdaySameTimeUnix);
+    endOfDayYesterday.setHours(23, 59, 59);
+
+    const unixEpoch = new Date(0);
+
+    const todoQueryResults = await this.db.getAllFromIndex(
+      'todos',
+      'idx_created_at_status',
+      IDBKeyRange.bound(
+        [unixEpoch, TodoStatus.Incomplete],
+        [endOfDayYesterday, TodoStatus.Incomplete],
+        true,
+        false,
+      ),
+    );
+
+    const todos = todoQueryResults
+      .map<Todo>(LocalTodoStore.mapTodoDBRecordToTodo);
+
+    return {
+      items: todos,
+    };
+  }
+
+  private async getTodoById(todoId: ULID): Promise<Todo | null> {
+    const todoRecord = await this.db.get('todos', todoId);
+    if (!todoRecord) return null;
+
+    return LocalTodoStore.mapTodoDBRecordToTodo(todoRecord);
+  }
+
+  async handleStaleTodosActions(details: HandleStaleTodoInput[]): Promise<void> {
+    await Promise.all(
+      details.map(({ action, id }) => (
+        this.handleStaleTodoAction({ action, id })
+      )),
+    );
+  }
+
+  private async handleStaleTodoAction({
+    action,
+    id: todoId,
+  }: HandleStaleTodoInput): Promise<void> {
+    switch (action) {
+      case StaleTodoAction.MarkInactive: {
+        await this.updateTodo({
+          id: todoId,
+          status: TodoStatus.Inactive,
+        });
+        break;
+      }
+      case StaleTodoAction.MarkCompleted: {
+        await this.updateTodo({
+          id: todoId,
+          status: TodoStatus.Complete,
+        });
+        break;
+      }
+      case StaleTodoAction.CarryOver: {
+        const todo = await this.getTodoById(todoId);
+        if (!todo) {
+          console.warn(`Could not find todo with ID ${todoId}`);
+          throw new Error('Could not carry over some todos');
+        }
+        await this.updateTodo({
+          id: todoId,
+          status: TodoStatus.Inactive,
+        });
+        await this.createTodo(todo);
+        break;
+      }
+      default: {
+        console.warn('LocalTodoStore#handleStaleTodoAction called with invalid / unhandleable action type', { action, id: todoId });
+      }
+    }
   }
 
   async createTodo(details: CreateTodoInput): Promise<Todo> {
@@ -79,10 +160,10 @@ class LocalTodoStore implements TodoStore {
     return LocalTodoStore.mapTodoDBRecordToTodo(newTodo);
   }
 
-  async updateTodo(id: string, details: UpdateTodoInputDetails): Promise<Todo> {
+  async updateTodo(details: UpdateTodoInputDetails): Promise<void> {
     const trx = this.db.transaction('todos', 'readwrite');
 
-    const existingTodoRecord = await trx.store.get(id);
+    const existingTodoRecord = await trx.store.get(details.id);
     if (!existingTodoRecord) {
       throw new Error('Todo does not exist');
     }
@@ -93,9 +174,7 @@ class LocalTodoStore implements TodoStore {
       updated_at: new Date(),
     } satisfies TodoDBRecord;
 
-    await trx.store.put(newTodoRecord, id);
-
-    return LocalTodoStore.mapTodoDBRecordToTodo(newTodoRecord);
+    await trx.store.put(newTodoRecord, details.id);
   }
 
   private static mapTodoDBRecordToTodo(todoDBRecord: TodoDBRecord): Todo {

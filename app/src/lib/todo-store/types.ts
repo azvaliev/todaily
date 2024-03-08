@@ -6,6 +6,20 @@ export enum TodoStatus {
   Inactive = 'inactive',
   Complete = 'complete',
 }
+export enum StaleTodoAction {
+  /**
+    * Todo was not completed, but it is not relevant today
+  * */
+  MarkInactive = 'mark-inactive',
+  /**
+    * Todo was not completed and should be carried over to today
+  * */
+  CarryOver = 'carry-over',
+  /**
+    * Todo was not marked as complete but was completed
+  * */
+  MarkCompleted = 'mark-completed',
+}
 
 export type ULID = string & { __brand?: never };
 export type Todo = {
@@ -17,13 +31,19 @@ export type Todo = {
 };
 
 export type CreateTodoInput = Pick<Todo, 'content'> & Partial<Pick<Todo, 'status'>>;
-export type UpdateTodoInputDetails = Partial<Pick<Todo, 'content' | 'status'>>;
+export type UpdateTodoInputDetails = { id: ULID } & Partial<Pick<Todo, 'content' | 'status'>>;
+export type HandleStaleTodoInput = { id: ULID, action: StaleTodoAction };
 
 export interface TodoStore {
   /**
-    * Get todos for `date` and any previous incomplete todos
+    * Get todos for `date`
   * */
   getRelevantTodos(date: Date): Promise<{ items: Todo[] }>;
-  createTodo(details: CreateTodoInput): Promise<Todo>;
-  updateTodo(id: string, details: UpdateTodoInputDetails): Promise<Todo>;
+  /**
+    * Get any todos before midnight today that are incomplete
+  * */
+  getStaleTodos(): Promise<{ items: Todo[] }>;
+  handleStaleTodosActions(details: HandleStaleTodoInput[]): Promise<void>;
+  createTodo(details: CreateTodoInput): Promise<Pick<Todo, 'id'>>;
+  updateTodo(details: UpdateTodoInputDetails): Promise<void>;
 }

@@ -1,4 +1,5 @@
 import { DBSchema, IDBPDatabase, openDB } from 'idb';
+import { snakeToCamelCase } from 'cold-case';
 import { ulid } from 'ulidx';
 import {
   CreateTodoInput,
@@ -9,10 +10,6 @@ const LOCAL_DB_NAME = 'todos';
 
 /**
   * Schema for the Todo stores in IndexedDB
-  *
-  * Using unix timestamps for ease of date querying in IndexedDB
-  * IndexedDB does not support BigInt so just to be safe using seconds
-  * Also, for our use case the granularity of milliseconds is not neccesary
   * */
 interface TodoStoreDBV1Schema extends DBSchema {
   todos: {
@@ -21,26 +18,11 @@ interface TodoStoreDBV1Schema extends DBSchema {
       id: ULID;
       content: string;
       status: TodoStatus;
-      /** unix timestamp seconds */
-      createdAt: number;
-      /** unix timestamp seconds */
-      updatedAt?: number;
+      created_at: Date;
+      updated_at?: Date;
     };
+    indexes: { idx_created_at_status: [Date, TodoStatus] }
   };
-  /**
-    * Which todos are relevant for today, based on created_at
-    * A single todo can be carried over multiple days so this table represents that
-    * */
-  todo_days: {
-    key: ULID;
-    value: {
-      id: ULID;
-      todoId: ULID;
-      /** unix timestamp seconds */
-      createdAt: number;
-    },
-    indexes: { idx_created_at: number; }
-  }
 }
 
 type TodoDBRecord = TodoStoreDBV1Schema['todos']['value'];
@@ -51,57 +33,35 @@ class LocalTodoStore implements TodoStore {
   static async create(): Promise<LocalTodoStore> {
     const db = await openDB<TodoStoreDBV1Schema>(LOCAL_DB_NAME, 1, {
       upgrade(database) {
-        database.createObjectStore('todos', {
+        const todoStore = database.createObjectStore('todos', {
           keyPath: 'id',
         });
-
-        const todoDaysStore = database.createObjectStore('todo_days', {
-          keyPath: 'id',
-        });
-        todoDaysStore.createIndex('idx_created_at', 'created_at', { unique: false });
+        todoStore.createIndex('idx_created_at_status', ['created_at', 'status'], { unique: false });
       },
     });
 
     return new LocalTodoStore(db);
   }
 
-  async getTodos(date: Date): Promise<{ items: Todo[]; }> {
+  async getRelevantTodos(date: Date): Promise<{ items: Todo[]; }> {
     /** Midnight of `date` */
     const startOfDay = new Date(date);
     startOfDay.setHours(0, 0, 0);
-    const startOfDayUnixSeconds = LocalTodoStore.convertDateToUnixSecondsTimestamp(startOfDay);
 
     /** Midnight, technically the next day */
     const endOfDay = new Date(date);
     endOfDay.setDate(endOfDay.getDate() + 1);
     endOfDay.setHours(0, 0, 0);
-    const endOfDayUnixSeconds = LocalTodoStore.convertDateToUnixSecondsTimestamp(endOfDay);
-
-    /** Get all todo id's relevant for day */
-    const todoDays = await this.db.getAllFromIndex('todo_days', 'idx_created_at', IDBKeyRange.bound(startOfDayUnixSeconds, endOfDayUnixSeconds));
-
-    const todoIds = todoDays
-      .map((todoDay) => todoDay.todoId)
-      // This shouldn't be a thing.. but I can't guarantee that through any kind of constraint here
-      .filter((todoId, todoIdx, filteringTodoIds) => filteringTodoIds.indexOf(todoId) === todoIdx);
 
     /** Join todos to todo id's */
-    const todoTrx = this.db.transaction('todos', 'readonly');
-    const todoQueryResults = await Promise.all(
-      todoIds.map((todoId) => (
-        todoTrx.store.get(todoId)
-      )),
+    const todoQueryResults = await this.db.getAllFromIndex(
+      'todos',
+      'idx_created_at_status',
+      IDBKeyRange.bound([startOfDay], [endOfDay]),
     );
 
     const todos = todoQueryResults
-      .filter((todo): todo is TodoDBRecord => {
-        if (todo === null || todo === undefined) {
-          console.warn('Failed to locate some existing todos');
-          return false;
-        }
-        return true;
-      })
-      .map<Todo>(LocalTodoStore.mapTodoDBRecordToTodo);
+      .map<Todo>((dbRec) => snakeToCamelCase(dbRec));
 
     return { items: todos };
   }
@@ -109,20 +69,12 @@ class LocalTodoStore implements TodoStore {
   async createTodo(details: CreateTodoInput): Promise<Todo> {
     const newTodo = {
       id: ulid(),
-      createdAt: LocalTodoStore.convertDateToUnixSecondsTimestamp(new Date()),
+      created_at: new Date(),
       status: TodoStatus.Incomplete,
       ...details,
     } satisfies TodoDBRecord;
 
     await this.db.put('todos', newTodo, newTodo.id);
-    await this.db.put(
-      'todo_days',
-      {
-        id: ulid(),
-        todoId: newTodo.id,
-        createdAt: newTodo.createdAt,
-      },
-    );
 
     return LocalTodoStore.mapTodoDBRecordToTodo(newTodo);
   }
@@ -138,6 +90,7 @@ class LocalTodoStore implements TodoStore {
     const newTodoRecord = {
       ...existingTodoRecord,
       ...details,
+      updated_at: new Date(),
     } satisfies TodoDBRecord;
 
     await trx.store.put(newTodoRecord, id);
@@ -145,38 +98,9 @@ class LocalTodoStore implements TodoStore {
     return LocalTodoStore.mapTodoDBRecordToTodo(newTodoRecord);
   }
 
-  /**
-    * The way we store todos in the IndexedDB is a bit different then the outward representation
-    * Mostly just returning actual date objects instead of unix timestamps
-    * */
-  private static mapTodoDBRecordToTodo(record: TodoDBRecord): Todo {
-    const createdAtDate = LocalTodoStore.convertUnixSecondsTimestampToDate(record.createdAt);
-    let updatedAtDate: Todo['updatedAt'];
-    if (record.updatedAt) {
-      updatedAtDate = LocalTodoStore.convertUnixSecondsTimestampToDate(record.updatedAt);
-    }
-
-    return {
-      ...record,
-      createdAt: createdAtDate,
-      updatedAt: updatedAtDate,
-    };
-  }
-
-  private static convertDateToUnixSecondsTimestamp(date: Date): UnixSeconds {
-    const unixMilliseconds = date.valueOf();
-    return Math.trunc(unixMilliseconds / 1000);
-  }
-
-  private static convertUnixSecondsTimestampToDate(seconds: UnixSeconds): Date {
-    const unixMilliseconds = seconds * 1000;
-    return new Date(unixMilliseconds);
+  private static mapTodoDBRecordToTodo(todoDBRecord: TodoDBRecord): Todo {
+    return snakeToCamelCase(todoDBRecord);
   }
 }
-
-/**
-  * like a normal unix timestamp, but in seconds instead of milliseconds
-  * */
-type UnixSeconds = number & { __brand?: never };
 
 export default LocalTodoStore;

@@ -17,10 +17,12 @@ describe('Local browser store happy path', () => {
       content: faker.lorem.sentence(),
     } satisfies CreateTodoInput;
 
-    await localTodoStore.createTodo(todoContent);
+    const insertedTodo = await localTodoStore.createTodo(todoContent);
 
-    const { items: [todo] } = await localTodoStore.getRelevantTodos(new Date());
+    const { items: [todo, ...rest] } = await localTodoStore.getRelevantTodos(new Date());
+    expect(rest.length).toBe(0);
 
+    expect(insertedTodo).toStrictEqual(insertedTodo);
     expect(todo).toBeDefined();
     expect(todo!.id).toBeTypeOf('string');
     expect(todo!.createdAt).toBeInstanceOf(Date);
@@ -37,9 +39,33 @@ describe('Local browser store happy path', () => {
       status: TodoStatus.Complete,
     });
 
-    const { items: [todo] } = await localTodoStore.getRelevantTodos(new Date());
+    const { items: [todo, ...rest] } = await localTodoStore.getRelevantTodos(new Date());
+    expect(rest.length).toBe(0);
 
     expect(todo).toBeDefined();
     expect(todo!.status).toBe(TodoStatus.Complete);
+  });
+
+  it('Can update todo content & status', async () => {
+    const originalContent = faker.lorem.sentence();
+    const { id, status, content } = await localTodoStore.createTodo({ content: originalContent });
+
+    expect(status).toEqual(TodoStatus.Incomplete);
+    expect(content).toEqual(originalContent);
+
+    const newContent = faker.lorem.sentence();
+    await localTodoStore.updateTodo({ id, content: newContent, status: TodoStatus.Complete });
+
+    const { items: [updatedTodo, ...rest] } = await localTodoStore.getRelevantTodos(new Date());
+    expect(rest.length).toBe(0);
+
+    expect(updatedTodo).toBeDefined();
+    expect(updatedTodo!.updatedAt).toBeInstanceOf(Date);
+    expect(updatedTodo!.updatedAt!.valueOf()).not.toEqual(updatedTodo!.createdAt.valueOf());
+    expect(updatedTodo).toStrictEqual(expect.objectContaining({
+      id,
+      content: newContent,
+      status: TodoStatus.Complete,
+    }));
   });
 });

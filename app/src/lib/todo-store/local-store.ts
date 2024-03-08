@@ -174,7 +174,7 @@ export class LocalTodoStore implements TodoStore {
       updated_at: new Date(),
     } satisfies TodoDBRecord;
 
-    await trx.store.put(newTodoRecord, details.id);
+    await trx.store.put(newTodoRecord);
   }
 
   private static mapTodoDBRecordToTodo(todoDBRecord: TodoDBRecord): Todo {

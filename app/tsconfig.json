@@ -26,7 +26,8 @@
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
-    "noFallthroughCasesInSwitch": true
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": true
   },
   "include": ["./**/*.ts", "./**/*.tsx", "tailwind.config.js"],
   "references": [{ "path": "./tsconfig.node.json" }]

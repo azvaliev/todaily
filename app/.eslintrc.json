@@ -25,6 +25,16 @@
     "no-console": [
       "error",
       { "allow": ["warn", "error"] }
+    ],
+    "import/no-extraneous-dependencies":[
+      "error",
+      {
+         "devDependencies":[
+           "vitest.config.ts",
+            "**/*.test.ts",
+            "**/*.test.tsx"
+         ]
+      }
     ]
   }
 }

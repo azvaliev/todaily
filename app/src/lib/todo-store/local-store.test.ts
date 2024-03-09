@@ -7,6 +7,7 @@ import {
   vi,
 } from 'vitest';
 import { faker } from '@faker-js/faker';
+import { ulid } from 'ulidx';
 import { LocalTodoStore } from './local-store';
 import { TodoStatus, type CreateTodoInput } from './types';
 
@@ -14,7 +15,7 @@ describe('Basic CRUD', () => {
   let localTodoStore: LocalTodoStore;
 
   beforeEach(async () => {
-    localTodoStore = await LocalTodoStore.create(faker.hacker.noun());
+    localTodoStore = await LocalTodoStore.create(ulid());
   });
 
   it('Can create and retrieve the todo', async () => {
@@ -75,13 +76,14 @@ describe('Basic CRUD', () => {
   });
 });
 
+const oneDayInMS = 24 * 60 * 60 * 1000;
+const nowUnixTimestamp = Date.now();
+
 describe('Relevant Todos', () => {
-  const oneDayInMS = 24 * 60 * 60 * 1000;
-  const nowUnixTimestamp = Date.now();
   let localTodoStore: LocalTodoStore;
 
   beforeEach(async () => {
-    localTodoStore = await LocalTodoStore.create(faker.hacker.noun());
+    localTodoStore = await LocalTodoStore.create(ulid());
     vi.useFakeTimers();
     vi.setSystemTime(nowUnixTimestamp);
   });
@@ -143,5 +145,78 @@ describe('Relevant Todos', () => {
     expect(relevantTodos).toHaveLength(1);
 
     expect(relevantTodos[0]).toStrictEqual(completedTodo);
+  });
+});
+
+describe('stale todos', () => {
+  let localTodoStore: LocalTodoStore;
+
+  beforeEach(async () => {
+    localTodoStore = await LocalTodoStore.create(ulid());
+    vi.useFakeTimers();
+    vi.setSystemTime(nowUnixTimestamp);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('finds previously incomplete todos', async () => {
+    const yesterday = nowUnixTimestamp - oneDayInMS;
+    vi.setSystemTime(yesterday);
+
+    const yesterdayIncompleteTodo = await localTodoStore.createTodo({
+      content: faker.lorem.sentence(),
+    });
+
+    const oneWeekAgo = nowUnixTimestamp - (7 * oneDayInMS);
+    vi.setSystemTime(oneWeekAgo);
+
+    const oneWeekAgoIncompleteTodo = await localTodoStore.createTodo({
+      content: faker.lorem.sentence(),
+    });
+
+    vi.setSystemTime(nowUnixTimestamp);
+
+    const { items: staleTodos } = await localTodoStore.getStaleTodos();
+    expect(staleTodos).toHaveLength(2);
+
+    expect(staleTodos).toStrictEqual(
+      expect.arrayContaining([yesterdayIncompleteTodo, oneWeekAgoIncompleteTodo]),
+    );
+  });
+
+  it.each([TodoStatus.Inactive, TodoStatus.Complete])('ignores previously %s or inactive todos', async (status) => {
+    const yesterday = nowUnixTimestamp - oneDayInMS;
+    vi.setSystemTime(yesterday);
+
+    const yesterdayTodo = await localTodoStore.createTodo({
+      content: faker.lorem.sentence(),
+    });
+    await localTodoStore.updateTodo({ id: yesterdayTodo.id, status });
+
+    const oneYearAgo = nowUnixTimestamp - (365 * oneDayInMS);
+    vi.setSystemTime(oneYearAgo);
+
+    const oneYearAgoTodo = await localTodoStore.createTodo({
+      content: faker.lorem.sentence(),
+    });
+    await localTodoStore.updateTodo({ id: oneYearAgoTodo.id, status });
+
+    vi.setSystemTime(nowUnixTimestamp);
+
+    const { items: staleTodos } = await localTodoStore.getStaleTodos();
+    expect(staleTodos).toHaveLength(0);
+  });
+
+  it('does not count todays todos as stale', async () => {
+    await localTodoStore.createTodo({ content: faker.lorem.sentence() });
+    await localTodoStore.createTodo({
+      content: faker.lorem.sentence(),
+      status: TodoStatus.Complete,
+    });
+
+    const { items: todos } = await localTodoStore.getStaleTodos();
+    expect(todos).toHaveLength(0);
   });
 });

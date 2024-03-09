@@ -23,7 +23,7 @@ interface TodoStoreDBV1Schema extends DBSchema {
       created_at: Date;
       updated_at?: Date;
     };
-    indexes: { idx_created_at_status: [Date, TodoStatus] }
+    indexes: { idx_status: TodoStatus, idx_created_at: Date }
   };
 }
 
@@ -38,7 +38,8 @@ export class LocalTodoStore implements TodoStore {
         const todoStore = database.createObjectStore('todos', {
           keyPath: 'id',
         });
-        todoStore.createIndex('idx_created_at_status', ['created_at', 'status'], { unique: false });
+        todoStore.createIndex('idx_created_at', 'created_at', { unique: false });
+        todoStore.createIndex('idx_status', 'status', { unique: false });
       },
     });
 
@@ -57,8 +58,8 @@ export class LocalTodoStore implements TodoStore {
 
     const todoQueryResults = await this.db.getAllFromIndex(
       'todos',
-      'idx_created_at_status',
-      IDBKeyRange.bound([startOfDay], [endOfDay]),
+      'idx_created_at',
+      IDBKeyRange.bound(startOfDay, endOfDay),
     );
 
     const todos = todoQueryResults
@@ -73,20 +74,14 @@ export class LocalTodoStore implements TodoStore {
     const endOfDayYesterday = new Date(yesterdaySameTimeUnix);
     endOfDayYesterday.setHours(23, 59, 59);
 
-    const unixEpoch = new Date(0);
-
     const todoQueryResults = await this.db.getAllFromIndex(
       'todos',
-      'idx_created_at_status',
-      IDBKeyRange.bound(
-        [unixEpoch, TodoStatus.Incomplete],
-        [endOfDayYesterday, TodoStatus.Incomplete],
-        true,
-        false,
-      ),
+      'idx_status',
+      IDBKeyRange.only(TodoStatus.Incomplete),
     );
 
     const todos = todoQueryResults
+      .filter((todo) => todo.created_at.getTime() < endOfDayYesterday.getTime())
       .map<Todo>(LocalTodoStore.mapTodoDBRecordToTodo);
 
     return {

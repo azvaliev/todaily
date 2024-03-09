@@ -9,7 +9,7 @@ import {
 import { faker } from '@faker-js/faker';
 import { ulid } from 'ulidx';
 import { LocalTodoStore } from './local-store';
-import { TodoStatus, type CreateTodoInput } from './types';
+import { TodoStatus, type CreateTodoInput, StaleTodoAction } from './types';
 
 describe('Basic CRUD', () => {
   let localTodoStore: LocalTodoStore;
@@ -218,5 +218,75 @@ describe('stale todos', () => {
 
     const { items: todos } = await localTodoStore.getStaleTodos();
     expect(todos).toHaveLength(0);
+  });
+
+  it('can take action on stale todos', async () => {
+    const lastWeek = nowUnixTimestamp - (7 * oneDayInMS);
+    vi.setSystemTime(lastWeek);
+
+    const staleCompletedTodo = await localTodoStore.createTodo({
+      content: faker.lorem.sentence(),
+      status: TodoStatus.Complete,
+    });
+    const staleIncompleteTodoCarryOver = await localTodoStore.createTodo({
+      content: faker.lorem.sentence(),
+      status: TodoStatus.Incomplete,
+    });
+    const staleIncompleteToInactive = await localTodoStore.createTodo({
+      content: faker.lorem.sentence(),
+      status: TodoStatus.Incomplete,
+    });
+    const staleIncompleteTodoToCompleted = await localTodoStore.createTodo({
+      content: faker.lorem.sentence(),
+      status: TodoStatus.Incomplete,
+    });
+
+    vi.setSystemTime(nowUnixTimestamp);
+
+    const activeTodo = await localTodoStore.createTodo({ content: faker.lorem.sentence() });
+
+    const { items: staleTodos } = await localTodoStore.getStaleTodos();
+    expect(staleTodos).toHaveLength(3);
+    expect(staleTodos).not.toContain(expect.objectContaining(staleCompletedTodo));
+
+    expect(staleTodos).toStrictEqual(expect.arrayContaining([
+      staleIncompleteTodoCarryOver,
+      staleIncompleteToInactive,
+      staleIncompleteTodoToCompleted,
+    ]));
+
+    await localTodoStore.handleStaleTodosActions([
+      { id: staleIncompleteTodoCarryOver.id, action: StaleTodoAction.CarryOver },
+      { id: staleIncompleteToInactive.id, action: StaleTodoAction.MarkInactive },
+      { id: staleIncompleteTodoToCompleted.id, action: StaleTodoAction.MarkCompleted },
+    ]);
+
+    const { items: stillStaleTodos } = await localTodoStore.getStaleTodos();
+    expect(stillStaleTodos).toHaveLength(0);
+
+    const {
+      items: activeTodosOneWeekAgo,
+    } = await localTodoStore.getRelevantTodos(new Date(lastWeek));
+    expect(activeTodosOneWeekAgo).toHaveLength(3);
+
+    // The updatedAt changed so no need to compare anymore
+    delete staleIncompleteToInactive.updatedAt;
+    delete staleIncompleteTodoToCompleted.updatedAt;
+
+    expect(activeTodosOneWeekAgo).toStrictEqual(expect.arrayContaining([
+      staleCompletedTodo,
+      expect.objectContaining({ ...staleIncompleteToInactive, status: TodoStatus.Inactive }),
+      expect.objectContaining({ ...staleIncompleteTodoToCompleted, status: TodoStatus.Complete }),
+    ]));
+
+    const {
+      items: activeTodos,
+    } = await localTodoStore.getRelevantTodos(new Date());
+    expect(activeTodos).toHaveLength(2);
+
+    expect(activeTodos).toStrictEqual(expect.arrayContaining([
+      staleIncompleteTodoCarryOver,
+      activeTodo,
+    ]));
   });
 });

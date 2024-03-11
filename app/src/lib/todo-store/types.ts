@@ -34,15 +34,17 @@ export type CreateTodoInput = Pick<Todo, 'content'> & Partial<Pick<Todo, 'status
 export type UpdateTodoInputDetails = { id: ULID } & Partial<Pick<Todo, 'content' | 'status'>>;
 export type HandleStaleTodoInput = { id: ULID, action: StaleTodoAction };
 
+export type TodoItemsResponse = { items: Todo[] };
+
 export interface TodoStore {
   /**
     * Get todos for `date`
   * */
-  getRelevantTodos(date: Date): Promise<{ items: Todo[] }>;
+  getRelevantTodos(date: Date): Promise<TodoItemsResponse>;
   /**
     * Get any todos before midnight today that are incomplete
   * */
-  getStaleTodos(): Promise<{ items: Todo[] }>;
+  getStaleTodos(): Promise<TodoItemsResponse>;
   handleStaleTodosActions(details: HandleStaleTodoInput[]): Promise<void>;
   createTodo(details: CreateTodoInput): Promise<Pick<Todo, 'id'>>;
   updateTodo(details: UpdateTodoInputDetails): Promise<void>;

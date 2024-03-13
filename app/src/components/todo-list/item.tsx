@@ -1,6 +1,6 @@
 import { CheckedState } from '@radix-ui/react-checkbox';
 import {
-  ChangeEvent, useContext, useEffect, useReducer, useRef,
+  ChangeEvent, useContext, useEffect, useReducer, useRef, useState,
 } from 'react';
 import { TodoManagerContext, TodoManagerContextValue } from '@/lib/todo-store/hooks';
 import type { TodoOptionalId } from '@/lib/todo-store/hooks/constants';
@@ -35,6 +35,26 @@ function TodoListItem({ todo }: TodoListItemProps): React.JSX.Element {
   } = useEditTodoListItem({ todo, todoManagerCtx });
   const todoIsComplete = editableTodoProperties.status === TodoStatus.Complete;
 
+  const [rowCount, setRowCount] = useState(1);
+  const todoContentTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  useEffect(() => {
+    if (!todoContentTextareaRef.current) return;
+
+    const computedTextareaStyle = window.getComputedStyle(todoContentTextareaRef.current);
+    const lineHeight = parseInt(computedTextareaStyle.lineHeight, 10);
+
+    // Scroll height is essentially the entire height of elements content, including hidden stuff
+    // To determine how many rows we need to show, we have to know how many
+    // "lines" the scrollHeight is roughly equivalent to
+    // https://developer.mozilla.org/en-US/docs/Web/API/Element/scrollHeight
+    const newRowCount = Math.floor(
+      todoContentTextareaRef.current.scrollHeight / lineHeight,
+    );
+
+    setRowCount(newRowCount);
+  }, [editableTodoProperties.content]);
+
   return (
     <li
       className="flex items-center"
@@ -44,15 +64,19 @@ function TodoListItem({ todo }: TodoListItemProps): React.JSX.Element {
         checked={todoIsComplete}
         onCheckedChange={handleTodoCompletedCheckChange}
       />
-      <input
-        type="text"
-        className={`ml-2 h-fit border-0 outline-none bg-transparent ${todoIsComplete && 'line-through brightness-50'}`}
+      <textarea
+        className={
+          `mx-4 h-fit border-0 outline-none bg-transparent ${todoIsComplete && 'line-through brightness-50'} `
+          + 'resize-none w-full'
+        }
+        rows={rowCount}
+        ref={todoContentTextareaRef}
         onChange={handleTodoContentInputEvent}
         disabled={!todoIsEditable}
         value={editableTodoProperties.content}
       />
       <Button
-        className="ml-auto my-1 py-0"
+        className="my-1 py-0"
         type="button"
         aria-label="Delete todo"
         disabled={!todoIsEditable}
@@ -89,7 +113,7 @@ function useEditTodoListItem({ todo, todoManagerCtx } : { todo: TodoListItemProp
     });
   };
 
-  const handleTodoContentInputEvent = (e: ChangeEvent<HTMLInputElement>) => {
+  const handleTodoContentInputEvent = (e: ChangeEvent<HTMLTextAreaElement>) => {
     const { value } = e.target;
     if (!value || value.length < 2) return;
 

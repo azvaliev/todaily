@@ -2,10 +2,10 @@ import React, {
   FormEvent, useContext, useState,
 } from 'react';
 import { TodoManagerContext } from '@/lib/todo-store/hooks';
-import { Input } from '@/components/ui/input.tsx';
 import { Button } from '@/components/ui/button';
 import { TodoStatus } from '@/lib/todo-store/types.ts';
 import TodoListItem from './item';
+import { Textarea } from '@/components/ui/textarea';
 
 function Index(): React.JSX.Element | null {
   const todoManagerCtx = useContext(TodoManagerContext);
@@ -22,7 +22,7 @@ function Index(): React.JSX.Element | null {
 
   return (
     <main className="flex flex-col mx-auto">
-      <ul className="list-disc list-inside text-lg leading-loose w-full py-12">
+      <ul className="list-disc list-inside text-lg leading-loose w-full py-12 flex flex-col gap-y-4">
         {data.items.length === 0 ? (
           <h2 className="font-extralight">No todos yet!</h2>
         ) : (
@@ -51,18 +51,19 @@ function AddTodoListItem(): React.JSX.Element | null {
   };
 
   return (
-    <form className="flex w-full max-w-sm items-center space-x-2" onSubmit={handleSubmit}>
-      <Input
-        type="text"
+    <form className="flex flex-col w-full gap-y-4" onSubmit={handleSubmit}>
+      <Textarea
         placeholder="What's next on the todo list?"
         value={newTodo}
         onChange={(e) => setNewTodo(e.target.value)}
-        size={newTodo.length}
         required
         minLength={2}
       />
-      <Button type="submit">
-        Add
+      <Button
+        type="submit"
+        className="w-full"
+      >
+        Add Todo
       </Button>
     </form>
   );

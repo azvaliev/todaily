@@ -48,4 +48,5 @@ export interface TodoStore {
   handleStaleTodosActions(details: HandleStaleTodoInput[]): Promise<void>;
   createTodo(details: CreateTodoInput): Promise<Pick<Todo, 'id'>>;
   updateTodo(details: UpdateTodoInputDetails): Promise<void>;
+  deleteTodo(id: ULID): Promise<void>;
 }

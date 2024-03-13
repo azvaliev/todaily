@@ -19,20 +19,25 @@ function useTodoManager(date: Date) {
     ) : skipToken,
   });
 
-  const { addTodoMutation, updateTodoMutation } = useTodoMutation({ store, relevantTodosQueryKey });
+  const {
+    addTodoMutation,
+    updateTodoMutation,
+    deleteTodoMutation,
+  } = useTodoMutation({ store, relevantTodosQueryKey });
 
   return {
     relevantTodosQuery,
     addTodoMutation,
     updateTodoMutation,
+    deleteTodoMutation,
   };
 }
 
-const TodoMangerContext = createContext<TodoManagerContextValue>(null);
+const TodoManagerContext = createContext<TodoManagerContextValue>(null);
 type TodoManagerContextValue = ReturnType<typeof useTodoManager> | null;
 
 export {
   useTodoManager,
-  TodoMangerContext,
+  TodoManagerContext,
   type TodoManagerContextValue,
 };

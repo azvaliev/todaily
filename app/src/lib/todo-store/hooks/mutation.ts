@@ -1,4 +1,5 @@
 import { QueryKey, useMutation, useQueryClient } from '@tanstack/react-query';
+import { ULID } from 'ulidx';
 import {
   CreateTodoInput, TodoStatus, TodoStore, UpdateTodoInputDetails,
 } from '@/lib/todo-store/types.ts';
@@ -12,32 +13,65 @@ type UseTodoMutationParams = {
 function useTodoMutation({ store, relevantTodosQueryKey }: UseTodoMutationParams) {
   const queryClient = useQueryClient();
 
-  const handleOptimisticAddTodo = async (details: CreateTodoInput) => {
-    await queryClient.cancelQueries({ queryKey: relevantTodosQueryKey });
+  type MutationContext = { existingTodos: TodoListOptionalId | undefined };
 
-    const existingTodos = queryClient.getQueryData<TodoListOptionalId>(relevantTodosQueryKey);
-    queryClient.setQueryData<TodoListOptionalId>(
-      relevantTodosQueryKey,
-      (existingData) => {
-        const { items = [] } = existingData ?? {};
+  /**
+    * All the mutation optimistic updates have
+    * some boilerplate around canceling the old query, get the existing data
+    * and populate context with the existing data to rollback optimistic update if needed
+    * */
+  const handleOptimisticMutationFactory = <TInput>(
+    getOptimisticData: (existingItems: TodoListOptionalId['items'], input: TInput) => TodoListOptionalId,
+  ): (input: TInput) => Promise<MutationContext> => {
+    const fn = async (input: TInput) => {
+      await queryClient.cancelQueries({ queryKey: relevantTodosQueryKey });
 
-        const newItems = [
-          ...items,
-          {
-            status: TodoStatus.Incomplete,
-            createdAt: new Date(),
-            ...details,
-          },
-        ];
+      const existingTodos = queryClient.getQueryData<TodoListOptionalId>(relevantTodosQueryKey);
+      queryClient.setQueryData<TodoListOptionalId>(
+        relevantTodosQueryKey,
+        (existingData) => {
+          const { items = [] } = existingData ?? {};
 
-        return {
-          items: newItems,
-        };
-      },
-    );
+          return getOptimisticData(items, input);
+        },
+      );
 
-    return { existingTodos };
+      return { existingTodos };
+    };
+
+    return fn;
   };
+
+  const handleMutationError = (
+    _err: unknown,
+    _input: unknown,
+    context: MutationContext | undefined,
+  ) => {
+    queryClient.setQueryData(relevantTodosQueryKey, context?.existingTodos);
+  };
+
+  const handleMutationSuccess = async () => {
+    await queryClient.invalidateQueries({
+      queryKey: [QUERY_CACHE_PREFIX_KEY],
+    });
+  };
+
+  const handleOptimisticAddTodo = handleOptimisticMutationFactory<CreateTodoInput>(
+    (existingItems, input) => {
+      const newItems = [
+        ...existingItems,
+        {
+          status: TodoStatus.Incomplete,
+          createdAt: new Date(),
+          ...input,
+        },
+      ];
+
+      return {
+        items: newItems,
+      };
+    },
+  );
 
   const addTodoMutation = useMutation({
     mutationFn(...params: Parameters<TodoStore['createTodo']>) {
@@ -48,46 +82,31 @@ function useTodoMutation({ store, relevantTodosQueryKey }: UseTodoMutationParams
       return store.createTodo(...params);
     },
     onMutate: handleOptimisticAddTodo,
-    onError(_err, _newTodoInput, context) {
-      queryClient.setQueryData(relevantTodosQueryKey, context?.existingTodos);
-    },
-    async onSuccess() {
-      await queryClient.invalidateQueries({
-        queryKey: [QUERY_CACHE_PREFIX_KEY],
-      });
-    },
+    onError: handleMutationError,
+    onSuccess: handleMutationSuccess,
   });
 
-  const handleOptimisticUpdateTodo = async (updateDetails: UpdateTodoInputDetails) => {
-    await queryClient.cancelQueries({ queryKey: relevantTodosQueryKey });
+  const handleOptimisticUpdateTodo = handleOptimisticMutationFactory<UpdateTodoInputDetails>(
+    (existingItems, input) => {
+      const itemToUpdateIdx = existingItems.findIndex((item) => (
+        item.id === input.id
+      ));
 
-    const existingTodos = queryClient.getQueryData<TodoListOptionalId>(relevantTodosQueryKey);
-    queryClient.setQueryData<TodoListOptionalId>(
-      relevantTodosQueryKey,
-      (existingData) => {
-        const { items = [] } = existingData ?? {};
+      if (itemToUpdateIdx !== -1) {
+        const existingItem = existingItems[itemToUpdateIdx]!;
 
-        const itemToUpdateIdx = items.findIndex((item) => (
-          item.id === updateDetails.id
-        ));
-
-        if (itemToUpdateIdx !== -1) {
-          const existingItem = items[itemToUpdateIdx]!;
-
-          items[itemToUpdateIdx] = {
-            ...existingItem,
-            ...updateDetails,
-          };
-        }
-
-        return {
-          items,
+        // eslint-disable-next-line no-param-reassign
+        existingItems[itemToUpdateIdx] = {
+          ...existingItem,
+          ...input,
         };
-      },
-    );
+      }
 
-    return { existingTodos };
-  };
+      return {
+        items: existingItems,
+      };
+    },
+  );
 
   const updateTodoMutation = useMutation({
     mutationFn(...params: Parameters<TodoStore['updateTodo']>) {
@@ -98,19 +117,43 @@ function useTodoMutation({ store, relevantTodosQueryKey }: UseTodoMutationParams
       return store.updateTodo(...params);
     },
     onMutate: handleOptimisticUpdateTodo,
-    onError(_err, _newTodoInput, context) {
-      queryClient.setQueryData(relevantTodosQueryKey, context?.existingTodos);
+    onError: handleMutationError,
+    onSuccess: handleMutationSuccess,
+  });
+
+  const handleOptimisticDeleteTodo = handleOptimisticMutationFactory<ULID>(
+    (existingItems, todoId) => {
+      const itemToDeleteIdx = existingItems.findIndex((item) => (
+        item.id === todoId
+      ));
+
+      if (itemToDeleteIdx !== -1) {
+        existingItems.splice(itemToDeleteIdx, 1);
+      }
+
+      return {
+        items: existingItems,
+      };
     },
-    onSuccess() {
-      return queryClient.invalidateQueries({
-        queryKey: [QUERY_CACHE_PREFIX_KEY],
-      });
+  );
+
+  const deleteTodoMutation = useMutation({
+    mutationFn(...params: Parameters<TodoStore['deleteTodo']>) {
+      if (!store) {
+        throw new Error('todo store not initialized, cannot add todo');
+      }
+
+      return store.deleteTodo(...params);
     },
+    onMutate: handleOptimisticDeleteTodo,
+    onError: handleMutationError,
+    onSuccess: handleMutationSuccess,
   });
 
   return {
     addTodoMutation,
     updateTodoMutation,
+    deleteTodoMutation,
   };
 }
 

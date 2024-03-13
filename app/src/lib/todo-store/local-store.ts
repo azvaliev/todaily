@@ -172,6 +172,10 @@ export class LocalTodoStore implements TodoStore {
     await trx.store.put(newTodoRecord);
   }
 
+  async deleteTodo(id: ULID): Promise<void> {
+    await this.db.delete('todos', id);
+  }
+
   private static mapTodoDBRecordToTodo(todoDBRecord: TodoDBRecord): Todo {
     return snakeToCamelCase(todoDBRecord);
   }

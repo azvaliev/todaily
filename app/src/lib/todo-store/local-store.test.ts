@@ -74,6 +74,28 @@ describe('Basic CRUD', () => {
       status: TodoStatus.Complete,
     }));
   });
+
+  it('Can delete todo', async () => {
+    const todoToBeDeleted = await localTodoStore.createTodo({ content: faker.lorem.sentence() });
+    const todoShouldRemain = await localTodoStore.createTodo({ content: faker.lorem.sentence() });
+
+    let { items } = await localTodoStore.getRelevantTodos(new Date());
+    expect(items).toHaveLength(2);
+    expect(items).toStrictEqual(
+      expect.arrayContaining([
+        expect.objectContaining(todoToBeDeleted),
+        expect.objectContaining(todoShouldRemain),
+      ]),
+    );
+
+    await localTodoStore.deleteTodo(todoToBeDeleted.id);
+
+    ({ items } = await localTodoStore.getRelevantTodos(new Date()));
+    expect(items).toHaveLength(1);
+    expect(items[0]).toStrictEqual(
+      expect.objectContaining(todoShouldRemain),
+    );
+  });
 });
 
 const oneDayInMS = 24 * 60 * 60 * 1000;

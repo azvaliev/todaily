@@ -3,6 +3,7 @@ import { useMemo } from 'react';
 import SearchIcon from '@/components/icons/search';
 import TodoList from '@/components/todo-list';
 import { TodoManagerContext, useTodoManager } from '@/lib/todo-store/hooks';
+import StaleTodos from '@/components/stale-todos';
 
 export const Route = createFileRoute('/')({
   component: Index,
@@ -29,6 +30,7 @@ function Index() {
         </div>
         <TodoList />
       </div>
+      <StaleTodos />
     </TodoManagerContext.Provider>
   );
 }

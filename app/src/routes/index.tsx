@@ -1,6 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { useMemo } from 'react';
-import SearchIcon from '@/components/icons/search';
 import TodoList from '@/components/todo-list';
 import { TodoManagerContext, useTodoManager } from '@/lib/todo-store/hooks';
 import StaleTodos from '@/components/stale-todos';
@@ -24,9 +23,11 @@ function Index() {
           <h1 className="text-primary text-3xl font-medium w-max">
             {numericDateString}
           </h1>
+          {/*
           <button type="button" aria-label="Search">
             <SearchIcon />
           </button>
+          */}
         </div>
         <TodoList />
       </div>

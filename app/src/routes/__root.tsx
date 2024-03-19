@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { createRootRoute, Outlet } from '@tanstack/react-router';
 import { TanStackRouterDevtools } from '@tanstack/router-devtools';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import LocalTodoStore from '@/lib/todo-store/local-store.ts';
+import LocalTodoStore from '@/lib/todo-store/local-store';
 import { TodoStoreContext, TodoStoreContextValue } from '@/lib/todo-store/hooks/constants.ts';
 
 export const Route = createRootRoute({

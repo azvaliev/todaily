@@ -8,8 +8,8 @@ import {
 } from 'vitest';
 import { faker } from '@faker-js/faker';
 import { ulid } from 'ulidx';
-import { LocalTodoStore } from './local-store';
-import { TodoStatus, type CreateTodoInput, StaleTodoAction } from './types';
+import { LocalTodoStore } from '.';
+import { TodoStatus, type CreateTodoInput, StaleTodoAction } from '../types';
 
 describe('Basic CRUD', () => {
   let localTodoStore: LocalTodoStore;

@@ -7,9 +7,9 @@ import {
   CreateTodoInput,
   HandleStaleTodoInput,
   StaleTodoAction,
-  Todo, TodoStatus, TodoStore, ULID, UpdateTodoInputDetails,
+  Todo, TodoItemsResponse, TodoStatus, TodoStore, ULID, UpdateTodoInputDetails,
 } from '../types';
-import { createTokens } from './fulltext/tokens';
+import { convertTextToFulltextSearchTokens } from './fulltext';
 
 const LOCAL_DB_NAME = 'todos';
 
@@ -64,7 +64,7 @@ export class LocalTodoStore implements TodoStore {
         while (cursor) {
           const { value: existingRecord } = cursor;
 
-          const contentTokens = createTokens(existingRecord.content);
+          const contentTokens = convertTextToFulltextSearchTokens(existingRecord.content);
           existingRecord.content_tokens = contentTokens;
 
           await cursor.update(existingRecord);
@@ -179,7 +179,7 @@ export class LocalTodoStore implements TodoStore {
       id: ulid(),
       created_at: new Date(),
       status: TodoStatus.Incomplete,
-      content_tokens: createTokens(details.content),
+      content_tokens: convertTextToFulltextSearchTokens(details.content),
       ...details,
     } satisfies TodoDBRecord;
 
@@ -207,6 +207,67 @@ export class LocalTodoStore implements TodoStore {
 
   async deleteTodo(id: ULID): Promise<void> {
     await this.db.delete('todos', id);
+  }
+
+  async fulltextSearch(query: string): Promise<TodoItemsResponse> {
+    const queryTokens = convertTextToFulltextSearchTokens(query);
+
+    if (queryTokens.length < 1) {
+      return {
+        items: [],
+      };
+    }
+
+    // This gives us matched records for each individual token
+    const matchedRecordsPerToken = (await Promise.all(
+      queryTokens.map(async (token) => {
+        const tx = this.db.transaction('todos', 'readonly');
+        const store = tx.objectStore('todos');
+        const idx = store.index('idx_content_tokens');
+
+        const matchedRecords: TodoDBRecord[] = [];
+
+        let cursor = await idx.openCursor(IDBKeyRange.only(token));
+        while (cursor) {
+          matchedRecords.push(cursor.value);
+          cursor = await cursor.continue();
+        }
+
+        return matchedRecords;
+      }),
+    )).flat();
+
+    const minScore = queryTokens.length / 2;
+    type Score = number;
+
+    // Determine a score for each record, how many terms they matched
+    const mappedRecordScore = matchedRecordsPerToken
+      .flat()
+      .reduce((map, record) => {
+        const oldScore = map.get(record.id) || 0;
+
+        map.set(record.id, oldScore + 1);
+
+        return map;
+      }, new Map<ULID, Score>());
+
+    const matchedRecords = Array.from(mappedRecordScore.entries())
+      .filter(([_id, score]) => score > minScore)
+      .sort(([_aid, aScore], [_bId, bScore]) => {
+        if (aScore > bScore) {
+          return 1;
+        } if (bScore > aScore) {
+          return -1;
+        }
+        return 0;
+      })
+      .slice(0, 20)
+      .map(([id]) => matchedRecordsPerToken.find((record) => record.id === id)!)
+      .map((record) => LocalTodoStore.mapTodoDBRecordToTodo(record));
+
+    return {
+      items: matchedRecords,
+    };
   }
 
   private static mapTodoDBRecordToTodo(todoDBRecord: TodoDBRecord): Todo {

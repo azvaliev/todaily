@@ -1,20 +1,39 @@
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, useSearch } from '@tanstack/react-router';
 import { useMemo } from 'react';
 import TodoList from '@/components/todo-list';
 import { TodoManagerContext, useTodoManager } from '@/lib/todo-store/hooks';
 import StaleTodos from '@/components/stale-todos';
+import Search from '@/components/search';
 
 export const Route = createFileRoute('/')({
   component: Index,
+  validateSearch(search: Record<string, unknown>) {
+    let date: Date | undefined;
+
+    if ('date' in search && typeof search.date === 'string') {
+      const tryDate = new Date(search.date);
+
+      // If the date string was invalid, the date.valueOf will be NaN
+      // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date/Date#return_value
+      if (!Number.isNaN(tryDate.valueOf())) {
+        date = tryDate;
+      }
+    }
+
+    return {
+      date,
+    };
+  },
 });
 
 function Index() {
   const today = useMemo(() => new Date(), []);
+  const { date = today } = useSearch({ from: Route.fullPath });
 
   /** Format date string based on locale */
-  const numericDateString = today.toLocaleDateString(undefined, { year: 'numeric', month: '2-digit', day: '2-digit' });
+  const numericDateString = date.toLocaleDateString(undefined, { year: 'numeric', month: '2-digit', day: '2-digit' });
 
-  const todoManager = useTodoManager(today);
+  const todoManager = useTodoManager(date);
 
   return (
     <TodoManagerContext.Provider value={todoManager}>
@@ -23,11 +42,7 @@ function Index() {
           <h1 className="text-primary text-3xl font-medium w-max">
             {numericDateString}
           </h1>
-          {/*
-          <button type="button" aria-label="Search">
-            <SearchIcon />
-          </button>
-          */}
+          <Search />
         </div>
         <TodoList />
       </div>

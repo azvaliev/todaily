@@ -49,4 +49,5 @@ export interface TodoStore {
   createTodo(details: CreateTodoInput): Promise<Pick<Todo, 'id'>>;
   updateTodo(details: UpdateTodoInputDetails): Promise<void>;
   deleteTodo(id: ULID): Promise<void>;
+  fulltextSearch(query: string): Promise<TodoItemsResponse>;
 }

@@ -21,6 +21,12 @@ export enum StaleTodoAction {
   MarkCompleted = 'mark-completed',
 }
 
+export enum TodoPriority {
+  Low = 'low',
+  Normal = 'normal',
+  High = 'high',
+}
+
 export type ULID = string & { __brand?: never };
 export type Todo = {
   id: ULID;
@@ -28,9 +34,10 @@ export type Todo = {
   status: TodoStatus;
   updatedAt?: Date;
   createdAt: Date;
+  priority: TodoPriority;
 };
 
-export type CreateTodoInput = Pick<Todo, 'content'> & Partial<Pick<Todo, 'status'>>;
+export type CreateTodoInput = Pick<Todo, 'content' | 'priority'> & Partial<Pick<Todo, 'status'>>;
 export type UpdateTodoInputDetails = { id: ULID } & Partial<Pick<Todo, 'content' | 'status'>>;
 export type HandleStaleTodoInput = { id: ULID, action: StaleTodoAction };
 

@@ -7,7 +7,7 @@ import {
   CreateTodoInput,
   HandleStaleTodoInput,
   StaleTodoAction,
-  Todo, TodoItemsResponse, TodoStatus, TodoStore, ULID, UpdateTodoInputDetails,
+  Todo, TodoItemsResponse, TodoPriority, TodoStatus, TodoStore, ULID, UpdateTodoInputDetails,
 } from '../types';
 import { convertTextToFulltextSearchTokens } from './fulltext';
 
@@ -16,7 +16,7 @@ const LOCAL_DB_NAME = 'todos';
 /**
   * Schema for the Todo stores in IndexedDB
   * */
-interface TodoStoreDBV2Schema extends DBSchema {
+interface TodoStoreDBV3Schema extends DBSchema {
   todos: {
     key: ULID,
     value: {
@@ -29,6 +29,7 @@ interface TodoStoreDBV2Schema extends DBSchema {
       status: TodoStatus;
       created_at: Date;
       updated_at?: Date;
+      priority: TodoPriority;
     };
     indexes: {
       idx_status: TodoStatus,
@@ -38,13 +39,13 @@ interface TodoStoreDBV2Schema extends DBSchema {
   };
 }
 
-type TodoDBRecord = TodoStoreDBV2Schema['todos']['value'];
+type TodoDBRecord = TodoStoreDBV3Schema['todos']['value'];
 
 export class LocalTodoStore implements TodoStore {
-  constructor(private db: IDBPDatabase<TodoStoreDBV2Schema>) {}
+  constructor(private db: IDBPDatabase<TodoStoreDBV3Schema>) {}
 
   static async create(dbName = LOCAL_DB_NAME): Promise<LocalTodoStore> {
-    const db = await openDB<TodoStoreDBV2Schema>(dbName, 2, {
+    const db = await openDB<TodoStoreDBV3Schema>(dbName, 3, {
       async upgrade(database, oldVersion, _newVersion, transaction) {
         if (oldVersion < 1) {
           const todoStore = database.createObjectStore('todos', {
@@ -54,21 +55,36 @@ export class LocalTodoStore implements TodoStore {
           todoStore.createIndex('idx_status', 'status', { unique: false });
         }
 
-        // Adding content_tokens to all records
-
         const todoStore = transaction.objectStore('todos');
-        todoStore.createIndex('idx_content_tokens', 'content_tokens', { multiEntry: true });
 
-        let cursor = await todoStore.openCursor();
+        if (oldVersion < 2) {
+          // Adding content_tokens to all records
+          todoStore.createIndex('idx_content_tokens', 'content_tokens', { multiEntry: true });
 
-        while (cursor) {
-          const { value: existingRecord } = cursor;
+          let cursor = await todoStore.openCursor();
 
-          const contentTokens = await convertTextToFulltextSearchTokens(existingRecord.content);
-          existingRecord.content_tokens = contentTokens;
+          while (cursor) {
+            const { value: existingRecord } = cursor;
 
-          await cursor.update(existingRecord);
-          cursor = await cursor.continue();
+            const contentTokens = await convertTextToFulltextSearchTokens(existingRecord.content);
+            existingRecord.content_tokens = contentTokens;
+
+            await cursor.update(existingRecord);
+            cursor = await cursor.continue();
+          }
+        }
+
+        // Add priority to all records
+        {
+          let cursor = await todoStore.openCursor();
+
+          while (cursor) {
+            const { value: existingRecord } = cursor;
+
+            existingRecord.priority = TodoPriority.Normal;
+            await cursor.update(existingRecord);
+            cursor = await cursor.continue();
+          }
         }
 
         await transaction.done;
@@ -278,8 +294,32 @@ export class LocalTodoStore implements TodoStore {
 
 export default LocalTodoStore;
 
+/** @deprecated */
+// @ts-expect-error unused
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+interface TodoStoreDBV2Schema extends DBSchema {
+  todos: {
+    key: ULID,
+    value: {
+      id: ULID;
+      content: string;
+      /**
+        * For full text search
+      * */
+      content_tokens: string[];
+      status: TodoStatus;
+      created_at: Date;
+      updated_at?: Date;
+    };
+    indexes: {
+      idx_status: TodoStatus,
+      idx_created_at: Date,
+      idx_content_tokens: string[]
+    }
+  };
+}
+
 /**
-  * Schema for the Todo stores in IndexedDB
   * @deprecated
   * */
 // @ts-expect-error unused

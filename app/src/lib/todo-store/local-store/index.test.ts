@@ -9,7 +9,12 @@ import {
 import { faker } from '@faker-js/faker';
 import { ulid } from 'ulidx';
 import { LocalTodoStore } from '.';
-import { TodoStatus, type CreateTodoInput, StaleTodoAction } from '../types';
+import {
+  TodoStatus,
+  type CreateTodoInput,
+  StaleTodoAction,
+  TodoPriority,
+} from '../types';
 
 describe('Basic CRUD', () => {
   let localTodoStore: LocalTodoStore;
@@ -21,6 +26,7 @@ describe('Basic CRUD', () => {
   it('Can create and retrieve the todo', async () => {
     const todoContent = {
       content: faker.lorem.sentence(),
+      priority: TodoPriority.Normal,
     } satisfies CreateTodoInput;
 
     const insertedTodo = await localTodoStore.createTodo(todoContent);
@@ -35,13 +41,15 @@ describe('Basic CRUD', () => {
     expect(todo!.updatedAt).toBeUndefined();
     expect(todo).toStrictEqual(expect.objectContaining({
       ...todoContent,
+      priority: TodoPriority.Normal,
       status: TodoStatus.Incomplete,
     }));
   });
 
-  it('Honors specified todo status on creation', async () => {
+  it('Honors specified todo status & priority on creation', async () => {
     await localTodoStore.createTodo({
       content: faker.lorem.sentence(),
+      priority: TodoPriority.High,
       status: TodoStatus.Complete,
     });
 
@@ -50,11 +58,15 @@ describe('Basic CRUD', () => {
 
     expect(todo).toBeDefined();
     expect(todo!.status).toBe(TodoStatus.Complete);
+    expect(todo!.priority).toBe(TodoPriority.High);
   });
 
   it('Can update todo content & status', async () => {
     const originalContent = faker.lorem.sentence();
-    const { id, status, content } = await localTodoStore.createTodo({ content: originalContent });
+    const { id, status, content } = await localTodoStore.createTodo({
+      content: originalContent,
+      priority: TodoPriority.High,
+    });
 
     expect(status).toEqual(TodoStatus.Incomplete);
     expect(content).toEqual(originalContent);
@@ -76,8 +88,14 @@ describe('Basic CRUD', () => {
   });
 
   it('Can delete todo', async () => {
-    const todoToBeDeleted = await localTodoStore.createTodo({ content: faker.lorem.sentence() });
-    const todoShouldRemain = await localTodoStore.createTodo({ content: faker.lorem.sentence() });
+    const todoToBeDeleted = await localTodoStore.createTodo({
+      content: faker.lorem.sentence(),
+      priority: TodoPriority.Normal,
+    });
+    const todoShouldRemain = await localTodoStore.createTodo({
+      content: faker.lorem.sentence(),
+      priority: TodoPriority.Normal,
+    });
 
     let { items } = await localTodoStore.getRelevantTodos(new Date());
     expect(items).toHaveLength(2);
@@ -122,6 +140,7 @@ describe('Relevant Todos', () => {
 
     const yesterdayTodo = await localTodoStore.createTodo({
       content: faker.lorem.sentence(),
+      priority: TodoPriority.High,
     });
 
     // Create a todo very early this morning
@@ -131,6 +150,7 @@ describe('Relevant Todos', () => {
 
     const todoCreatedMidnightThisMorning = await localTodoStore.createTodo({
       content: faker.lorem.sentence(),
+      priority: TodoPriority.Low,
     });
     expect(
       todoCreatedMidnightThisMorning.createdAt.valueOf(),
@@ -143,6 +163,7 @@ describe('Relevant Todos', () => {
 
     const todoCreatedAlmostMidnightTonight = await localTodoStore.createTodo({
       content: faker.lorem.sentence(),
+      priority: TodoPriority.Normal,
     });
     expect(
       todoCreatedAlmostMidnightTonight.createdAt.valueOf(),
@@ -161,6 +182,7 @@ describe('Relevant Todos', () => {
   it('completed todos are still relevant', async () => {
     const completedTodo = await localTodoStore.createTodo({
       content: faker.lorem.sentence(),
+      priority: TodoPriority.Normal,
     });
 
     const { items: relevantTodos } = await localTodoStore.getRelevantTodos(new Date());
@@ -189,6 +211,7 @@ describe('stale todos', () => {
 
     const yesterdayIncompleteTodo = await localTodoStore.createTodo({
       content: faker.lorem.sentence(),
+      priority: TodoPriority.Low,
     });
 
     const oneWeekAgo = nowUnixTimestamp - (7 * oneDayInMS);
@@ -196,6 +219,7 @@ describe('stale todos', () => {
 
     const oneWeekAgoIncompleteTodo = await localTodoStore.createTodo({
       content: faker.lorem.sentence(),
+      priority: TodoPriority.Normal,
     });
 
     vi.setSystemTime(nowUnixTimestamp);
@@ -214,6 +238,7 @@ describe('stale todos', () => {
 
     const yesterdayTodo = await localTodoStore.createTodo({
       content: faker.lorem.sentence(),
+      priority: TodoPriority.High,
     });
     await localTodoStore.updateTodo({ id: yesterdayTodo.id, status });
 
@@ -222,6 +247,7 @@ describe('stale todos', () => {
 
     const oneYearAgoTodo = await localTodoStore.createTodo({
       content: faker.lorem.sentence(),
+      priority: TodoPriority.High,
     });
     await localTodoStore.updateTodo({ id: oneYearAgoTodo.id, status });
 
@@ -232,10 +258,14 @@ describe('stale todos', () => {
   });
 
   it('does not count todays todos as stale', async () => {
-    await localTodoStore.createTodo({ content: faker.lorem.sentence() });
+    await localTodoStore.createTodo({
+      content: faker.lorem.sentence(),
+      priority: TodoPriority.High,
+    });
     await localTodoStore.createTodo({
       content: faker.lorem.sentence(),
       status: TodoStatus.Complete,
+      priority: TodoPriority.High,
     });
 
     const { items: todos } = await localTodoStore.getStaleTodos();
@@ -249,23 +279,30 @@ describe('stale todos', () => {
     const staleCompletedTodo = await localTodoStore.createTodo({
       content: faker.lorem.sentence(),
       status: TodoStatus.Complete,
+      priority: TodoPriority.High,
     });
     const staleIncompleteTodoCarryOver = await localTodoStore.createTodo({
       content: faker.lorem.sentence(),
       status: TodoStatus.Incomplete,
+      priority: TodoPriority.Normal,
     });
     const staleIncompleteToInactive = await localTodoStore.createTodo({
       content: faker.lorem.sentence(),
       status: TodoStatus.Incomplete,
+      priority: TodoPriority.Normal,
     });
     const staleIncompleteTodoToCompleted = await localTodoStore.createTodo({
       content: faker.lorem.sentence(),
       status: TodoStatus.Incomplete,
+      priority: TodoPriority.Low,
     });
 
     vi.setSystemTime(nowUnixTimestamp);
 
-    const activeTodo = await localTodoStore.createTodo({ content: faker.lorem.sentence() });
+    const activeTodo = await localTodoStore.createTodo({
+      content: faker.lorem.sentence(),
+      priority: TodoPriority.Low,
+    });
 
     const { items: staleTodos } = await localTodoStore.getStaleTodos();
     expect(staleTodos).toHaveLength(3);

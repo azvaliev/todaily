@@ -15,6 +15,7 @@ When a new day begins and previous todos were not completed, one can either
 
 - Create, edit & delete todos
 - Mark todos as completed
+- Prioritize todos
 - Can view past days of todos
 - IndexedDB, with
   - **Fulltext search** implemented in IndexedDB

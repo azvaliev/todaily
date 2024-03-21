@@ -1,0 +1,58 @@
+name: Lint & Test JS
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+jobs:
+  lint-typecheck:
+    name: Lint & check types
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Install Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 20
+
+      - run: cd app
+      
+      - name: Enable Corepack
+        run: |
+          corepack enable
+          
+      - name: Install dependencies
+        run: yarn install --immutable
+
+      - name: Check Types
+        run: yarn typecheck
+
+      - name: Run ESLint
+        run: yarn lint
+  test:
+    name: Run tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Install Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 20
+
+      - run: cd app
+      
+      - name: Enable Corepack
+        run: corepack enable
+          
+      - name: Install dependencies
+        run: yarn install --immutable
+
+      - name: Run tests
+        run: yarn test
+

@@ -1,9 +1,10 @@
-import { createFileRoute, useSearch } from '@tanstack/react-router';
+import { Link, createFileRoute, useSearch } from '@tanstack/react-router';
 import { useMemo } from 'react';
 import TodoList from '@/components/todo-list';
 import { TodoManagerContext, useTodoManager } from '@/lib/todo-store/hooks';
 import StaleTodos from '@/components/stale-todos';
 import Search from '@/components/search';
+import { Button } from '@/components/ui/button';
 
 export const Route = createFileRoute('/')({
   component: Index,
@@ -44,6 +45,17 @@ function Index() {
           </h1>
           <Search />
         </div>
+        {
+          date.valueOf() !== today.valueOf() ? (
+            <Button className="mt-4 text-sm" asChild>
+              {/* This will create an href so it's okay */}
+              {/* eslint-disable-next-line jsx-a11y/anchor-is-valid */}
+              <Link from="/">
+                Return to Today &#8634;
+              </Link>
+            </Button>
+          ) : null
+        }
         <TodoList />
       </div>
       <StaleTodos />

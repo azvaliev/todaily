@@ -64,7 +64,7 @@ export class LocalTodoStore implements TodoStore {
         while (cursor) {
           const { value: existingRecord } = cursor;
 
-          const contentTokens = convertTextToFulltextSearchTokens(existingRecord.content);
+          const contentTokens = await convertTextToFulltextSearchTokens(existingRecord.content);
           existingRecord.content_tokens = contentTokens;
 
           await cursor.update(existingRecord);
@@ -175,11 +175,12 @@ export class LocalTodoStore implements TodoStore {
   }
 
   async createTodo(details: CreateTodoInput): Promise<Todo> {
+    const contentTokens = await convertTextToFulltextSearchTokens(details.content);
     const newTodo = {
       id: ulid(),
       created_at: new Date(),
       status: TodoStatus.Incomplete,
-      content_tokens: convertTextToFulltextSearchTokens(details.content),
+      content_tokens: contentTokens,
       ...details,
     } satisfies TodoDBRecord;
 
@@ -210,7 +211,7 @@ export class LocalTodoStore implements TodoStore {
   }
 
   async fulltextSearch(query: string): Promise<TodoItemsResponse> {
-    const queryTokens = convertTextToFulltextSearchTokens(query);
+    const queryTokens = await convertTextToFulltextSearchTokens(query);
 
     if (queryTokens.length < 1) {
       return {

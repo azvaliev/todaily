@@ -1,16 +1,17 @@
 /* eslint-disable no-continue */
-import expandContractions from '@stdlib/nlp-expand-contractions';
-
 // Match all punctuation except '
 const punctuationRegExp = /[!"#$%&()*+,-./:;<=>?@[\\]^_`{|}~]/g;
 
 // Match a single quote followed by a non word character
 const nonContractionSingleQuoteRegExp = /'\W/;
 
+const expandContractionsLibPromise = import('@stdlib/nlp-expand-contractions').then((res) => res.default);
+
 /**
   * Split text into tokens, like a word but a bit more granular.
 * */
-function createTokens(text: string): string[] {
+async function createTokens(text: string): Promise<string[]> {
+  const expandContractions = await expandContractionsLibPromise;
   const tokens: string[] = [];
 
   let word = '';

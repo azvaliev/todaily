@@ -1,14 +1,3 @@
-/**
-  * Remove stopwords from token array
-  * */
-function removeStopwords(tokens: string[]): string[] {
-  return tokens.filter((token) => {
-    const tokenIsStopword = stopwords.includes(token);
-
-    return !tokenIsStopword;
-  });
-}
-
 const stopwords = [
   '0o',
   '0s',
@@ -1172,4 +1161,4 @@ const stopwords = [
   'zz',
 ];
 
-export { removeStopwords };
+export { stopwords };

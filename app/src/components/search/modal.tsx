@@ -8,7 +8,7 @@ import {
 } from '../ui/command';
 import { QUERY_CACHE_PREFIX_KEY, TodoStoreContext } from '@/lib/todo-store/hooks/constants';
 import { Route as IndexRoute } from '@/routes/index';
-import { formatDate } from '@/lib/date';
+import { formatDateYYYYMMDD } from '@/lib/date';
 
 type SearchModalProps = {
   isOpen: boolean;
@@ -62,7 +62,7 @@ function SearchModal({
                   setIsOpen(false);
                   navigate({ search: { date: result.createdAt } });
                 };
-                const formattedDate = formatDate(result.createdAt);
+                const formattedDate = formatDateYYYYMMDD(result.createdAt);
 
                 return (
                   <CommandItem

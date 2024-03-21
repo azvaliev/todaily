@@ -11,6 +11,15 @@ When a new day begins and previous todos were not completed, one can either
 - mark them as completed
 - mark them as now irrelevant
 
+## Features
+
+- Create, edit & delete todos
+- Mark todos as completed
+- Can view past days of todos
+- IndexedDB, with
+  - **Fulltext search** implemented in IndexedDB
+  - Persistent storage for viewing todo history
+
 ## Storage Mechanisms
 
 - IndexedDB

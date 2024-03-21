@@ -6,26 +6,7 @@ import { TodoManagerContext } from '@/lib/todo-store/hooks';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '../ui/select';
-
-type DisplayPriority = {
-  color: string;
-  name: string;
-};
-
-const todoPriorityToDisplayPriority = {
-  [TodoPriority.Low]: {
-    name: 'Low',
-    color: '#2563eb',
-  },
-  [TodoPriority.Normal]: {
-    name: 'Normal',
-    color: '#fb923c',
-  },
-  [TodoPriority.High]: {
-    name: 'High',
-    color: '#dc2626',
-  },
-} satisfies { [K in TodoPriority]: DisplayPriority };
+import { PriorityIndicatorBlock, todoPriorityToDisplayPriority } from '../priority';
 
 const defaultNewTodo = { content: '', priority: TodoPriority.Normal };
 
@@ -43,9 +24,6 @@ function AddTodoListItem(): React.JSX.Element | null {
     setNewTodo({ ...defaultNewTodo });
   };
 
-  const { color: activeTodoPriorityColor } = todoPriorityToDisplayPriority[newTodo.priority]
-    || todoPriorityToDisplayPriority[TodoPriority.Low];
-
   return (
     <form className="flex flex-col w-full gap-y-4" onSubmit={handleSubmit}>
       <Textarea
@@ -59,10 +37,7 @@ function AddTodoListItem(): React.JSX.Element | null {
         onValueChange={(val) => setNewTodo((prev) => ({ ...prev, priority: val as TodoPriority }))}
       >
         <SelectTrigger className="w-[180px] justify-start gap-x-2">
-          <span
-            className="block w-1 h-full"
-            style={{ backgroundColor: activeTodoPriorityColor }}
-          />
+          <PriorityIndicatorBlock priority={newTodo.priority} />
           Priority:
           <SelectValue placeholder="Normal" />
         </SelectTrigger>

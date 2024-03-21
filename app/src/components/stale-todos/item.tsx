@@ -5,6 +5,7 @@ import { StaleTodoAction } from '@/lib/todo-store/types';
 import { Button } from '@/components/ui/button';
 import TrashIcon from '@/components/icons/trash-can';
 import { Checkbox } from '../ui/checkbox';
+import { PriorityIndicatorBlock } from '../priority';
 
 type StaleTodoItemProps = {
   staleTodoWithAction: StaleTodoWithAction;
@@ -46,6 +47,10 @@ function StaleTodoItem({
 
   return (
     <li className="flex flex-row items-center">
+      <PriorityIndicatorBlock
+        priority={staleTodoWithAction.priority}
+        className="mr-2 h-8 w-[6px]"
+      />
       <Checkbox
         checked={action === StaleTodoAction.MarkCompleted}
         disabled={todoQueudForDeletion}

@@ -7,7 +7,15 @@ import {
   CreateTodoInput,
   HandleStaleTodoInput,
   StaleTodoAction,
-  Todo, TodoItemsResponse, TodoPriority, TodoStatus, TodoStore, ULID, UpdateTodoInputDetails,
+  Todo,
+  TodoFilterSort,
+  TodoItemsResponse,
+  TodoPriority,
+  TodoStatus,
+  TodoStore,
+  ULID,
+  UpdateTodoInputDetails,
+  mapPriorityToSort,
 } from '../types';
 import { convertTextToFulltextSearchTokens } from './fulltext';
 
@@ -94,7 +102,13 @@ export class LocalTodoStore implements TodoStore {
     return new LocalTodoStore(db);
   }
 
-  async getRelevantTodos(date: Date): Promise<{ items: Todo[]; }> {
+  async getRelevantTodos(date: Date, _filterSort?: TodoFilterSort): Promise<{ items: Todo[]; }> {
+    const filterSort: Required<TodoFilterSort> = {
+      sortOrder: 'DESC',
+      sortBy: 'priority',
+      ..._filterSort,
+    };
+
     /** Midnight of `date` */
     const startOfDay = new Date(date);
     startOfDay.setHours(0, 0, 0);
@@ -112,6 +126,23 @@ export class LocalTodoStore implements TodoStore {
 
     const todos = todoQueryResults
       .map<Todo>(LocalTodoStore.mapTodoDBRecordToTodo);
+
+    switch (filterSort.sortBy) {
+      case 'priority': {
+        todos.sort((a, b) => {
+          const aPriorityNum = mapPriorityToSort[a.priority];
+          const bPriorityNum = mapPriorityToSort[b.priority];
+
+          if (aPriorityNum > bPriorityNum) return -1;
+          if (bPriorityNum > aPriorityNum) return 1;
+          return 0;
+        });
+        break;
+      }
+      default: {
+        assertIsNever(filterSort.sortBy);
+      }
+    }
 
     return { items: todos };
   }
@@ -293,6 +324,10 @@ export class LocalTodoStore implements TodoStore {
 }
 
 export default LocalTodoStore;
+
+function assertIsNever(_value: never) {
+  /* noop */
+}
 
 /** @deprecated */
 // @ts-expect-error unused

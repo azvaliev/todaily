@@ -8,6 +8,7 @@ import { TodoStatus, type Todo } from '@/lib/todo-store/types';
 import { Button } from '@/components/ui/button';
 import TrashIcon from '@/components/icons/trash-can';
 import { Checkbox } from '@/components/ui/checkbox';
+import { PriorityIndicatorBlock } from '../priority';
 
 type TodoListItemProps = {
   todo: TodoOptionalId,
@@ -57,8 +58,9 @@ function TodoListItem({ todo }: TodoListItemProps): React.JSX.Element {
 
   return (
     <li
-      className="flex items-center"
+      className="flex items-center w-full"
     >
+      <PriorityIndicatorBlock priority={todo.priority} className="h-full min-h-8 mr-2" />
       <Checkbox
         disabled={!todoIsEditable}
         checked={todoIsComplete}

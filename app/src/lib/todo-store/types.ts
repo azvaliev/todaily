@@ -27,6 +27,12 @@ export enum TodoPriority {
   High = 'high',
 }
 
+export const mapPriorityToSort = {
+  [TodoPriority.Low]: 0,
+  [TodoPriority.Normal]: 1,
+  [TodoPriority.High]: 2,
+} satisfies { [K in TodoPriority]: number };
+
 export type ULID = string & { __brand?: never };
 export type Todo = {
   id: ULID;
@@ -43,11 +49,18 @@ export type HandleStaleTodoInput = { id: ULID, action: StaleTodoAction };
 
 export type TodoItemsResponse = { items: Todo[] };
 
+export type TodoFilterSort = {
+  /** @default priority */
+  sortBy?: 'priority';
+  /** @default DESC */
+  sortOrder?: 'ASC' | 'DESC';
+};
+
 export interface TodoStore {
   /**
     * Get todos for `date`
   * */
-  getRelevantTodos(date: Date): Promise<TodoItemsResponse>;
+  getRelevantTodos(date: Date, filterSort?: TodoFilterSort): Promise<TodoItemsResponse>;
   /**
     * Get any todos before midnight today that are incomplete
   * */

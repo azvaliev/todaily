@@ -8,7 +8,7 @@ import {
 import { QUERY_CACHE_PREFIX_KEY, TodoStoreContext } from '@/lib/todo-store/hooks/constants';
 import { HandleStaleTodoInput, StaleTodoAction, Todo } from '@/lib/todo-store/types';
 
-export type StaleTodoWithAction = HandleStaleTodoInput & Pick<Todo, 'content'>;
+export type StaleTodoWithAction = HandleStaleTodoInput & Pick<Todo, 'content' | 'priority'>;
 
 function useStaleTodos() {
   const {
@@ -25,10 +25,11 @@ function useStaleTodos() {
   useEffect(() => {
     if (!staleTodos) return;
 
-    const defaultTodosWithActions = staleTodos.items.map(({ content, id }) => {
+    const defaultTodosWithActions = staleTodos.items.map(({ content, id, priority }) => {
       const todoAction = {
         id,
         content,
+        priority,
         action: StaleTodoAction.CarryOver,
       };
 

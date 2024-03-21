@@ -1,4 +1,4 @@
-name: Lint & Test JS
+name: javascript
 
 on:
   push:

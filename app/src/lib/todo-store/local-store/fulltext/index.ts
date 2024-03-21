@@ -11,7 +11,7 @@ async function convertTextToFulltextSearchTokens(text: string): Promise<string[]
   );
 }
 
-const stopwordsPromise = import('./stopwords').then((mod) => mod.stopwords);
+const stopwordsPromise = import('./stopwords.json').then((mod) => mod.default);
 
 /**
   * Remove stopwords from token array

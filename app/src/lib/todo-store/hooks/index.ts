@@ -11,7 +11,7 @@ function useTodoManager(date: Date) {
 
   const storeInstantiated = store !== null;
 
-  const relevantTodosQueryKey = [QUERY_CACHE_PREFIX_KEY, 'relevant', date.valueOf(), storeInstantiated] as const;
+  const relevantTodosQueryKey = [QUERY_CACHE_PREFIX_KEY, 'relevant', date.toLocaleDateString(), storeInstantiated] as const;
   const relevantTodosQuery = useQuery<TodoListOptionalId | undefined>({
     queryKey: relevantTodosQueryKey,
     queryFn: storeInstantiated ? () => (

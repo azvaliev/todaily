@@ -1,6 +1,7 @@
 import {
   Link, createFileRoute, useNavigate, useSearch,
 } from '@tanstack/react-router';
+import { useEffect, useState } from 'react';
 import TodoList from '@/components/todo-list';
 import { TodoManagerContext, useTodoManager } from '@/lib/todo-store/hooks';
 import StaleTodos from '@/components/stale-todos';
@@ -31,7 +32,25 @@ export const Route = createFileRoute('/')({
 });
 
 function Index() {
-  const today = new Date();
+  const [today, setToday] = useState(new Date());
+
+  // If you leave the app open overnight
+  useEffect(() => {
+    const thirtySecondsInMs = 1000 * 30;
+
+    const checkIfNewDay = setTimeout(() => {
+      const now = new Date();
+
+      if (now.getDate() !== today.getDate()) {
+        setToday(now);
+      }
+    }, thirtySecondsInMs);
+
+    return () => {
+      clearTimeout(checkIfNewDay);
+    };
+  }, [today]);
+
   const { date = today } = useSearch({ from: Route.fullPath });
   const navigate = useNavigate({ from: Route.fullPath });
 
